@@ -1,6 +1,6 @@
 const mysql = require('mysql')
 const HTTPError = require('node-http-error')
-const { assoc, propOr } = require('ramda')
+const { assoc, path, omit, compose, propOr, head, prop } = require('ramda')
 
 const addHotdog = (hotdog, callback) => {
   createHotdog(hotdog, callback)
@@ -10,6 +10,9 @@ const getHotdog = (hotdogId, callback) => {
   read('hotdog', hotdogId, callback)
 }
 
+const updateHotdog = (hotdog, callback) => {
+  update(hotdog, callback)
+}
 ///////////////////
 /// Helper FN's ///
 ///////////////////
@@ -17,17 +20,18 @@ const getHotdog = (hotdogId, callback) => {
 const createHotdog = (hotdog, callback) => {
   if (hotdog) {
     const connection = createConnection()
-    connection.query('INSERT INTO hotdog SET ? ', hotdog, function(
-      err,
-      result
-    ) {
-      if (err) return callback(err)
-      if (propOr(null, 'insertId', result)) {
-        callback(null, { ok: true, id: result.insertId })
-      } else {
-        callback(null, { ok: false, id: null })
+    connection.query(
+      'INSERT INTO hotdog SET ? ',
+      prepHotdogsForInsert(hotdog),
+      function(err, result) {
+        if (err) return callback(err)
+        if (propOr(null, 'insertId', result)) {
+          callback(null, { ok: true, id: result.insertId })
+        } else {
+          callback(null, { ok: false, id: null })
+        }
       }
-    })
+    )
 
     connection.end(err => err)
   } else {
@@ -45,7 +49,8 @@ const read = (tableName, id, callback) => {
       function(err, result) {
         if (err) return callback(err)
         if (propOr(0, ['length'], result) > 0) {
-          return callback(null, result)
+          const formattedResults = formatHotdog(head(result))
+          return callback(null, formattedResults)
         } else {
           return callback(
             new HTTPError(404, 'not foud', {
@@ -64,6 +69,39 @@ const read = (tableName, id, callback) => {
   }
 }
 
+function update(hotdog, callback) {
+  if (hotdog) {
+    var connection = createConnection()
+    hotdog = prepHotdogsForUpdate(hotdog)
+    connection.query(
+      'UPDATE hotdog SET ? WHERE ID = ' + hotdog.ID,
+      hotdog,
+      function(err, result) {
+        if (err) return callback(err)
+        if (typeof result !== 'undefined' && result.affectedRows === 0) {
+          return callback({
+            error: 'not_found',
+            reason: 'missing',
+            name: 'not_found',
+            status: 404,
+            message: 'missing'
+          })
+        } else if (typeof result !== 'undefined' && result.affectedRows === 1) {
+          return callback(null, {
+            ok: true,
+            id: hotdog.ID
+          })
+        }
+      }
+    )
+    connection.end(function(err) {
+      if (err) return err
+    })
+  } else {
+    return callback(new HTTPError(400, 'Missing hotdog'))
+  }
+}
+
 const createConnection = () => {
   return mysql.createConnection({
     user: process.env.MYSQL_USER,
@@ -73,5 +111,21 @@ const createConnection = () => {
   })
 }
 
-const dal = { addHotdog, getHotdog }
+const prepHotdogsForInsert = hotdog => {
+  return compose(omit('_rev'), omit('_id'), omit('type'))(hotdog)
+}
+
+const prepHotdogsForUpdate = hotdog => {
+  hotdog = assoc('ID', path(['_id'], hotdog), hotdog)
+  return compose(omit('_rev'), omit('_id'), omit('type'))(hotdog)
+}
+
+const formatHotdog = hotdog => {
+  hotdog = assoc('_id', path(['ID'], hotdog), hotdog)
+  return compose(omit('ID'), assoc('_rev', null), assoc('type', 'hotdog'))(
+    hotdog
+  )
+}
+
+const dal = { addHotdog, getHotdog, updateHotdog }
 module.exports = dal

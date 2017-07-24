@@ -5,7 +5,9 @@ const dal = require('./dal.js')
 const port = process.env.PORT || 4000
 const HTTPError = require('node-http-error')
 const bodyParser = require('body-parser')
-const { pathOr, keys, difference } = require('ramda')
+const { pathOr, keys, difference, path } = require('ramda')
+const checkRequiredFields = require('./lib/check-required-fields')
+const checkHotdogFields = checkRequiredFields(['name', 'cost', 'stock'])
 
 app.use(bodyParser.json())
 
@@ -15,10 +17,18 @@ app.get('/', function(req, res, next) {
 
 // CREATE  - POST /hotdogs
 app.post('/hotdogs', function(req, res, next) {
-  dal.addHotdog(req.body, function(err, data) {
-    if (err) return next(new HTTPError(err.status, err.message, err))
-    res.status(201).send(data)
-  })
+  const hotdog = pathOr(null, ['body'], req)
+  const createResults = checkHotdogFields(hotdog)
+  createResults.length > 0
+    ? next(
+        new HTTPError(400, 'missing required fields', {
+          createResults
+        })
+      )
+    : dal.addHotdog(hotdog, function(err, result) {
+        if (err) return next(new HTTPError(err.status, err.message, err))
+        res.status(201).send(result)
+      })
 })
 
 // READ - GET /hotdogs/:id
@@ -34,6 +44,22 @@ app.get('/hotdogs/:id', function(req, res, next) {
 })
 
 // UPDATE -  PUT /hotdogs/:id
+app.put('/hotdogs/:id', function(req, res, next) {
+  const id = path(['params', 'id'], req)
+  const body = pathOr(null, ['body'], req)
+  const updateResults = checkHotdogFields(body)
+  updateResults.length === 0
+    ? dal.updateHotdog(body, function(err, result) {
+        if (err) next(new HTTPError(err.status, err.message, err))
+        res.status(200).send(result)
+      })
+    : next(
+        new HTTPError(400, 'Missing Required Fields', {
+          missingRequiredFields: updateResults
+        })
+      )
+})
+
 // DELETE -  DELETE /hotdogs/:id
 // LIST - GET /hotdogs
 
