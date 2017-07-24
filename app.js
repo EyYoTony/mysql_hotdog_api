@@ -61,6 +61,14 @@ app.put('/hotdogs/:id', function(req, res, next) {
 })
 
 // DELETE -  DELETE /hotdogs/:id
+app.delete('/hotdogs/:id', function(req, res, next) {
+  const hotdogId = req.params.id
+  dal.deleteHotdog(hotdogId, function(err, data) {
+    if (err) return next(new HTTPError(err.status, err.message, err))
+    res.status(200).send(data)
+  })
+})
+
 // LIST - GET /hotdogs
 
 app.use(function(err, req, res, next) {

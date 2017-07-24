@@ -13,6 +13,10 @@ const getHotdog = (hotdogId, callback) => {
 const updateHotdog = (hotdog, callback) => {
   update(hotdog, callback)
 }
+
+const deleteHotdog = (hotdogId, callback) => {
+  deleteRow('hotdog', hotdogId, callback)
+}
 ///////////////////
 /// Helper FN's ///
 ///////////////////
@@ -102,6 +106,38 @@ function update(hotdog, callback) {
   }
 }
 
+function deleteRow(tablename, id, callback) {
+  if (id) {
+    var connection = createConnection()
+    connection.query(
+      'DELETE FROM ' + connection.escapeId(tablename) + ' WHERE id = ?',
+      [id],
+      function(err, result) {
+        if (err) return callback(err)
+        if (result && result.affectedRows === 0) {
+          return callback({
+            error: 'not_found',
+            reason: 'missing',
+            name: 'not_found',
+            status: 404,
+            message: 'missing'
+          })
+        } else if (result && result.affectedRows === 1) {
+          return callback(null, {
+            ok: true,
+            id: id
+          })
+        }
+      }
+    )
+    connection.end(function(err) {
+      if (err) return err
+    })
+  } else {
+    return callback(new HTTPError(400, 'Missing id parameter'))
+  }
+}
+
 const createConnection = () => {
   return mysql.createConnection({
     user: process.env.MYSQL_USER,
@@ -127,5 +163,5 @@ const formatHotdog = hotdog => {
   )
 }
 
-const dal = { addHotdog, getHotdog, updateHotdog }
+const dal = { addHotdog, getHotdog, updateHotdog, deleteHotdog }
 module.exports = dal
