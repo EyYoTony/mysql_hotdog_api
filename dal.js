@@ -6,6 +6,10 @@ const addHotdog = (hotdog, callback) => {
   createHotdog(hotdog, callback)
 }
 
+const getHotdog = (hotdogId, callback) => {
+  read('hotdog', hotdogId, callback)
+}
+
 ///////////////////
 /// Helper FN's ///
 ///////////////////
@@ -31,6 +35,35 @@ const createHotdog = (hotdog, callback) => {
   }
 }
 
+const read = (tableName, id, callback) => {
+  if (id && tableName) {
+    const connection = createConnection()
+
+    connection.query(
+      'SELECT * FROM ' + connection.escapeId(tableName) + 'WHERE ID = ? ',
+      [id],
+      function(err, result) {
+        if (err) return callback(err)
+        if (propOr(0, ['length'], result) > 0) {
+          return callback(null, result)
+        } else {
+          return callback(
+            new HTTPError(404, 'not foud', {
+              name: 'not_found',
+              error: 'not found',
+              reason: 'missing'
+            })
+          )
+        }
+      }
+    )
+
+    connection.end(err => err)
+  } else {
+    return callback(new HTTPError(400, 'Missing information'))
+  }
+}
+
 const createConnection = () => {
   return mysql.createConnection({
     user: process.env.MYSQL_USER,
@@ -40,5 +73,5 @@ const createConnection = () => {
   })
 }
 
-const dal = { addHotdog }
+const dal = { addHotdog, getHotdog }
 module.exports = dal
